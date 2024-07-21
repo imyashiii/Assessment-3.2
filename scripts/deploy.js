@@ -1,10 +1,10 @@
 const hre = require("hardhat");
 async function main() {
-  const DeAuction = await hre.ethers.getContractFactory("DeAuction");
-  const deAuction = await DeAuction.deploy();
-  await deAuction.deployed();
+  const DeTask = await hre.ethers.getContractFactory("DeTask");
+  const deTask = await DeTask.deploy();
+  await deTask.deployed();
 
-  console.log(`A contract is deployed to ${deAuction.address}`);
+  console.log(`A contract is deployed to ${deTask.address}`);
 }
 
 main()

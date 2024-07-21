@@ -1,122 +1,73 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.17;
 
-
-// Decentralized Auction management system
-contract DeAuction {
-    struct Auction {
+contract DeTask {
+    struct Task {
         uint256 id;
-        address payable seller;
-        string item;
-        uint256 basePrice;
-        uint256 highestBid;
-        address payable highestBidder;
-        uint256 endTime;
-        bool ended;
+        string description;
+        address creator;
+        bool isCompleted;
     }
 
-    uint256 public itemsCount = 0;
-    mapping(uint256 => Auction) public auctions;
+    uint256 public taskCount = 0;
+    mapping(uint256 => Task) public tasks;
 
-    event AuctionCreated(uint256 id, address seller, string item, uint256 startPrice, uint256 endTime);
-    event NewBidPlaced(uint256 auctionId, address bidder, uint256 amount);
-    event AuctionEnded(uint256 auctionId, address winner, uint256 amount);
+    event TaskCreated(uint256 id, string description, address creator);
+    event TaskCompleted(uint256 id, address completer);
 
-    modifier onlySeller(uint256 auctionId) {
-        require(auctions[auctionId].seller == msg.sender, "Only the owner is allowed to end this auction");
+    modifier onlyCreator(uint256 taskId) {
+        require(tasks[taskId].creator == msg.sender, "Only the creator can complete this task");
         _;
     }
 
-    modifier auctionExists(uint256 auctionId) {
-        require(auctionId > 0 && auctionId <= itemsCount, "The auction was never existed");
+    modifier taskExists(uint256 taskId) {
+        require(taskId > 0 && taskId <= taskCount, "Task does not exist");
         _;
     }
 
-    modifier auctionNotEnded(uint256 auctionId) {
-        require(!auctions[auctionId].ended, "Auction has already been ended");
-        _;
-    }
+    function createTask(string memory description) public {
+        require(bytes(description).length > 0, "Task description cannot be empty");
 
-    modifier auctionInProgress(uint256 auctionId) {
-        require(block.timestamp < auctions[auctionId].endTime, "Auction has already been ended");
-        _;
-    }
-
-    function getNoOfItems()public view returns(uint){
-        return itemsCount;
-    }    
-
-    function getItemName(uint256 auctionId) public view auctionExists(auctionId) returns (string memory) {
-        return auctions[auctionId].item;
-    }
-
-    function getHighestBid(uint256 auctionId) public view auctionExists(auctionId) returns (uint) {
-        return auctions[auctionId].highestBid;
-    }
-
-    function checkAuctionState(uint256 auctionId) public view auctionExists(auctionId) returns(bool) {
-        return auctions[auctionId].ended;
-    }
-
-    // Function to add a new item for selling
-    function createAuction(string memory item, uint256 basePrice, uint256 duration) public {
-        require(bytes(item).length > 0, "Item name cannot be empty");
-        require(basePrice > 0, "Starting price must be greater than 0");
-        require(duration > 60, "Duration must be greater than 1 minute");
-
-        itemsCount++;
-        auctions[itemsCount] = Auction({
-            id: itemsCount,
-            seller: payable(msg.sender),
-            item: item,
-            basePrice: basePrice,
-            highestBid: basePrice,
-            highestBidder: payable(address(0)),
-            endTime: block.timestamp + duration,
-            ended: false
+        taskCount++;
+        tasks[taskCount] = Task({
+            id: taskCount,
+            description: description,
+            creator: msg.sender,
+            isCompleted: false
         });
 
-        emit AuctionCreated(itemsCount, msg.sender, item, basePrice, block.timestamp + duration);
+        emit TaskCreated(taskCount, description, msg.sender);
     }
 
-    // Function to place a bid on an auction(item)
-    function placeBid(uint256 auctionId, uint bidPrice) public payable auctionExists(auctionId) auctionNotEnded(auctionId) auctionInProgress(auctionId) {
-        Auction storage auction = auctions[auctionId];
-        if(bidPrice <= auction.highestBid){
-            revert("Your bid can't be less than highest bid");
-        } 
-
-        if (auction.highestBidder != address(0)) {
-            // Refund the previous highest bidder
-            auction.highestBidder.transfer(auction.highestBid);
-        }
-
-        auction.highestBid = bidPrice;
-        auction.highestBidder = payable(msg.sender);
-
-        emit NewBidPlaced(auctionId, msg.sender, bidPrice);
+    function completeTask(uint256 taskId) public taskExists(taskId) onlyCreator(taskId) {
+        Task storage task = tasks[taskId];
+        require(!task.isCompleted, "Task is already completed");
+        task.isCompleted = true;
+        emit TaskCompleted(taskId, msg.sender);
     }
 
-    // Function to end an auction and transfer the highest bid to the seller
-    function endAuction(uint256 auctionId) public auctionExists(auctionId) onlySeller(auctionId) auctionNotEnded(auctionId) auctionInProgress(auctionId){
-        Auction storage auction = auctions[auctionId];
-
-        auction.ended = true;
-        if (auction.highestBidder != address(0)) {
-            auction.seller.transfer(auction.highestBid);
-        }
-
-        emit AuctionEnded(auctionId, auction.highestBidder, auction.highestBid);
+    function getTaskName(uint taskId) public view taskExists(taskId) returns(string memory){
+        Task storage task = tasks[taskId];
+        return task.description;
     }
 
-    function invalidateAuction(uint256 auctionId) public auctionExists(auctionId) onlySeller(auctionId) auctionNotEnded(auctionId){
-        Auction storage auction = auctions[auctionId];
+    function getCreator(uint taskId) public view taskExists(taskId) returns(address){
+        Task storage task = tasks[taskId];
+        return task.creator;
+    }
 
-        auction.ended = true;
-        if (auction.highestBidder != address(0)) {
-            auction.highestBidder.transfer(auction.highestBid);
-        }
-        auction.highestBid = 0;
-        auction.highestBidder= payable(address(0));
+    function checkTaskCompletion(uint256 taskId) public view taskExists(taskId) returns(bool){
+        Task storage task = tasks[taskId];
+        return task.isCompleted;
+    }
+
+    // Function to demonstrate revert
+    function invalidateTask(uint256 taskId) public taskExists(taskId) onlyCreator(taskId) {
+        Task storage task = tasks[taskId];
+        require(!task.isCompleted, "Task is already completed");
+
+        task.description = "";
+        task.isCompleted = false;
+        revert("Task has been invalidated and reset");
     }
 }
